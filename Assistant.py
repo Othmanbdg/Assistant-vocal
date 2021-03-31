@@ -7,6 +7,9 @@ import unidecode
 import os
 from google_trans_new import google_translator
 import psutil
+from youtubesearchpython import VideosSearch
+import webbrowser
+import screen_brightness_control as sbc
 
 class Assistant:
     def __init__(self):
@@ -16,11 +19,12 @@ class Assistant:
         self.get_temperature()
         self.reccur=None
         self.battery = psutil.sensors_battery()
+
     def listen(self):
         r = sr.Recognizer()
         with sr.Microphone() as source:
             r.adjust_for_ambient_noise(source)
-            print("Say something!")
+            print("Tu peux parler")
             audio = r.listen(source)
         try:
             print("T'as dis " + r.recognize_google(audio,language="fr-FR"))
@@ -37,7 +41,8 @@ class Assistant:
         dico={"température":f"Il fait {self.temperature} actuellement à Villeneuve-La-Garenne",
                "heure":f"Il est {b.tm_hour} heure et {b.tm_min} minutes.","alt f4":"Très bien j'éteins l'ordinateur",
                "éteins l'ordinateur":"Très bien je l'éteins",
-               "recap":f"il est actuellement {b.tm_hour} heure et {b.tm_min} minutes et Votre ordinateur est à {self.battery.percent}%"}
+               "recap":f"il est actuellement {b.tm_hour} heure et {b.tm_min} minutes et Votre ordinateur est à {self.battery.percent}%",
+               "au revoir":"Au revoir"}
         if self.vocal != None:
             kl=False
             for ui in dico.keys():
@@ -46,7 +51,6 @@ class Assistant:
                     kl=True
             if kl == False:
                 dtf=responding(self.vocal)
-                print(dtf.mess)
                 a=dtf.dire()
             print(a)
             Speak.speak(a)
@@ -77,16 +81,21 @@ class Assistant:
 class responding:
     def __init__(self,voc):
         self.question=False
+        self.musique=False
+        self.lumi=False
         self.work=voc
         self.Answer()
         self.mess=""
     def Answer(self):
         L=self.work.split(" ")
-        if L[0][:2] =="qu" or L[0] == "ça" or "combien" or "comment":
+        if L[0][:2] =="qu" or L[0] == "ça" or  L[0] =="combien" or  L[0] =="comment" or "c'est qui" in L:
             self.question = True
-        elif "+" or "-" or "/" or "x" in L:
+        elif "+" in L or "-" in L or "/" in L or "x" in L:
             self.question = True
-
+        if L[0] == "joue":
+            self.musique=True
+        if "luminosité" in L:
+            self.lumi=True
     def response_quest(self):
         L=self.work.split(" ")
         mot=None
@@ -107,9 +116,11 @@ class responding:
                     mot="jjk"
                 elif L[1] == "-" or "+" or "x" or "/":
                     mot="jjk"
+                elif L[:2] == ["c'est","qui"] or  L[:2] == ["qui","est-ce"] or L[:2] == ["qui","est"]:
+                    mot="person"
             except:
                 pass
-        if mot != None and mot != "jjk" and mot != "lgg":
+        if mot != None and mot != "jjk" and mot != "lgg" and mot != "person":
             mot=unidecode.unidecode(mot)
             if "'" in mot:
                 mot=mot.split("'")[1]
@@ -156,17 +167,57 @@ class responding:
             self.mess = "Je ne comprends pas"
 
     def translate(self):
-        dico={"anglais":"en","allemand":""}
+        dico={"anglais":"en","allemand":"de","espagnol":"es"}
         L=self.work.split(" ")
         language=L[L.index("en")+1]
+        print(language)
         translator = google_translator()
         mess=self.work.split("comment on dit")[1].split("en "+language)[0]
+        print(mess)
         translate_text = translator.translate(mess,lang_tgt=dico[language])
         self.mess =  "On dit "+translate_text
 
+    def play(self):
+        L=self.work.split(" ")
+        mus=" ".join(L[1:])
+        videosSearch = VideosSearch(mus, limit = 2)
+
+        a=videosSearch.result()
+        b=a["result"]
+        c=b[0]
+        webbrowser.open(c["link"], new=0, autoraise=True)
+        titre=c["title"]
+        PP=["Clip Officiel","(",")","Clip officiel",]
+        for ui in PP:
+            titre=titre.replace(ui,"")
+        self.mess="Je joue "+ titre
+
     def dire(self):
-        self.response_quest()
+        if self.question == True:
+            self.response_quest()
+        elif self.musique == True:
+            self.play()
+        elif self.lumi == True:
+            self.lumni()
         return self.mess
 
 
+    def lumni(self):
+        L=self.work.split(" ")
+        p=sbc.get_brightness()
+        br="10"
+        if "augmente" in L and "%" not in self.work:
+            sbc.set_brightness('+10')
+        elif "augmente" in L and "%" in self.work:
+            psc=L[L.index("de")+1]
+            sbc.set_brightness('+'+psc)
+            br=psc
+        elif "baisse" in L and "%" in self.work:
+            psc=L[L.index("de")+1]
+            sbc.set_brightness('-'+psc)
+            br=psc
+        elif "baisse" in L and "%" not in self.work:
+            sbc.set_brightness('-10')
 
+        txt= "augmenté"if "augmente" in L else 'baissé'
+        self.mess="La luminosité a été "+txt+" de "+br+" %"
